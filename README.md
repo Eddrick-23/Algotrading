@@ -1,0 +1,2 @@
+# Algotrading
+ Algorithmic trading project
