@@ -5,7 +5,53 @@ from itertools import product
 import yfinance as yf
 
 class SimpleMovingAverageBT():
+    ''' class to backtest stocks using Simple Moving Averages
+    Attributes
+    ----------
+    symbol: str
+        ticker symbol
+    sma_s: int
+        short window length
+    sma_l: int
+        long window length
+    start: str
+        start date
+    end: str
+        end date
+    preprocessed_data: pandas dataframe
+        Contains raw data that has not been backtested
+    data: pandas dataframe
+        Contains data after backtesting, contains more columns with different metrics
+    optimisation_results: pandas dataframe
+        Contains performance data of different short and long window combinations
+
+    Methods
+    -------
+    set_window:
+        Sets new window for SMA strategy
+    backtest:
+        Backtests strategy using simple moving averages
+    plot_data:
+        plots the data as a line graph
+    optimise_windows:
+        finds the optimal window based on specified ranges for the short and long window
+    '''
+
     def __init__(self, symbol, sma_s, sma_l, start, end):
+        '''
+        parameters
+        ----------
+        symbol: str
+            ticker symbol
+        sma_s: int
+            short window length
+        sma_l: int
+            long window length
+        start: str
+            start date
+        end: str
+            end date
+        '''
         self.symbol = symbol
         self.sma_s = sma_s
         self.sma_l = sma_l
@@ -35,6 +81,14 @@ class SimpleMovingAverageBT():
         df["SMA_L"] = df.Price.rolling(self.sma_l).mean()
         self.data = df
     def set_window(self, sma_s = None, sma_l = None):
+        ''' Sets new window for SMA strategy
+        parameters
+        ----------
+        sma_s : int
+            short window
+        sma_l: int
+            long window
+        '''
         if sma_s != None:
             self.sma_s = sma_s
         if sma_l != None:
@@ -43,6 +97,14 @@ class SimpleMovingAverageBT():
         self.process_data()
         
     def backtest(self, print_res = True, return_res = False):
+        ''' Backtests strategy using simple moving averages
+        parameters
+        ----------
+        print_res: boolean, optional
+            Set to False to remove output
+        return_res: boolean, optional
+            Set to True to return the absolute performance
+        '''
         df = self.data.copy().dropna()
         df["positions"] = np.where(df.SMA_S>df.SMA_L, 1, -1)
         df["r_strategy"] = df.positions.shift(1) * df.returns
@@ -58,6 +120,9 @@ class SimpleMovingAverageBT():
             return strategy_perf #returns the absolute performance to be stored/used elsewhere
     
     def plot_data(self):
+        '''
+            plots the data as a line graph
+        '''
         if self.result is None:
             raise Exception("Run Backtest first, no results to plot!")
         self.result[["creturns","cr_strategy"]].plot(figsize = (12,8), fontsize = 13)
@@ -66,6 +131,14 @@ class SimpleMovingAverageBT():
         plt.show()
 
     def optimise_windows(self, sma_s_range, sma_l_range):
+        ''' finds the optimal window based on specified ranges for the short and long window
+        parameters
+        ----------
+        sma_s_range: tuple
+            Pass in a tuple of integers in the following format: (lower bound, upper bound, step)
+        sma_l_range: tuple
+            Pass in a tuple of integers in the following format: (lower bound, upper bound, step)
+        '''
         #find optimal short and long term window combination based on a given input range
         all_combinations = list(product(range(*sma_s_range),range(*sma_l_range)))
         results = []
