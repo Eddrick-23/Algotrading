@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from itertools import product
 import yfinance as yf
+from bidask import edge
 
 class SimpleMovingAverageBT():
     ''' class to backtest stocks using Simple Moving Averages
@@ -37,7 +38,7 @@ class SimpleMovingAverageBT():
         finds the optimal window based on specified ranges for the short and long window
     '''
 
-    def __init__(self, symbol, sma_s, sma_l, start, end):
+    def __init__(self, symbol, sma_s, sma_l, start, end, interval = "1d"):
         '''
         parameters
         ----------
@@ -57,6 +58,7 @@ class SimpleMovingAverageBT():
         self.sma_l = sma_l
         self.start = start
         self.end = end
+        self.interval = interval
         self.get_data()
         self.process_data()
     
@@ -66,7 +68,8 @@ class SimpleMovingAverageBT():
         '''
             Loads the stock data from the yfinance library
         '''
-        df = yf.download(self.symbol, self.start, self.end)
+        df = yf.download(self.symbol, self.start, self.end, interval= self.interval)
+        self.estimate_ptc(df)
         df = df.Close.to_frame() #we will work with close prices only
         df.rename(columns = {"Close":"Price"}, inplace = True)
         self.preprocessed_data = df #to be used for changing windows so we don't have to repeatedly call yf.download
@@ -80,6 +83,10 @@ class SimpleMovingAverageBT():
         df["SMA_S"] = df.Price.rolling(self.sma_s).mean()
         df["SMA_L"] = df.Price.rolling(self.sma_l).mean()
         self.data = df
+    def estimate_ptc(self, df):
+        spread = edge(df.Open, df.High, df.Low, df.Close)
+        self.ptc = (spread/200) / df.Close.mean()
+
     def set_window(self, sma_s = None, sma_l = None):
         ''' Sets new window for SMA strategy
         parameters
@@ -109,13 +116,16 @@ class SimpleMovingAverageBT():
         df["positions"] = np.where(df.SMA_S>df.SMA_L, 1, -1)
         df["r_strategy"] = df.positions.shift(1) * df.returns
         df.dropna(inplace = True)
+        df["trades"] = df["positions"].diff().fillna(0).abs()
+        df["r_strategy_net"] = df.r_strategy - df.trades * self.ptc
         df["creturns"] = df.returns.cumsum().apply(np.exp) #convert the log returns
         df["cr_strategy"] = df.r_strategy.cumsum().apply(np.exp)
+        df["cr_strategy_net"] = df.r_strategy_net.cumsum().apply(np.exp)
         self.result = df
-        strategy_perf = round(df.cr_strategy.iloc[-1],4)
-        strategy_outperf = round(df.cr_strategy.iloc[-1] - df.creturns.iloc[-1], 4)
+        strategy_perf = round(df.cr_strategy_net.iloc[-1],4)
+        strategy_outperf = round(df.cr_strategy_net.iloc[-1] - df.creturns.iloc[-1], 4)
         if print_res:
-            print(f"SMA absolute performance: {strategy_perf} || SMA outperformance vs Buy and Hold: {strategy_outperf}" )
+            print(f"SMA Net performance: {strategy_perf} || SMA outperformance vs Buy and Hold: {strategy_outperf}" )
         if return_res:
             return strategy_perf #returns the absolute performance to be stored/used elsewhere
     
@@ -125,7 +135,7 @@ class SimpleMovingAverageBT():
         '''
         if self.result is None:
             raise Exception("Run Backtest first, no results to plot!")
-        self.result[["creturns","cr_strategy"]].plot(figsize = (12,8), fontsize = 13)
+        self.result[["creturns","cr_strategy","cr_strategy_net"]].plot(figsize = (12,8), fontsize = 13)
         plt.title(f"{self.symbol} || SMA(short) = {self.sma_s} || SMA(Long) = {self.sma_l}", size = 20)
         plt.legend(fontsize = 13)
         plt.show()
