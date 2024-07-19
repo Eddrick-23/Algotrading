@@ -69,7 +69,7 @@ class SimpleMovingAverageBT():
             Loads the stock data from the yfinance library
         '''
         df = yf.download(self.symbol, self.start, self.end, interval= self.interval)
-        self.estimate_ptc(df)
+        self.half_spread = edge(df.Open,df.High, df.Low, df.Close)
         df = df.Close.to_frame() #we will work with close prices only
         df.rename(columns = {"Close":"Price"}, inplace = True)
         self.preprocessed_data = df #to be used for changing windows so we don't have to repeatedly call yf.download
@@ -83,9 +83,6 @@ class SimpleMovingAverageBT():
         df["SMA_S"] = df.Price.rolling(self.sma_s).mean()
         df["SMA_L"] = df.Price.rolling(self.sma_l).mean()
         self.data = df
-    def estimate_ptc(self, df):
-        spread = edge(df.Open, df.High, df.Low, df.Close)
-        self.ptc = (spread/200) / df.Close.mean()
 
     def set_window(self, sma_s = None, sma_l = None):
         ''' Sets new window for SMA strategy
@@ -117,7 +114,7 @@ class SimpleMovingAverageBT():
         df["r_strategy"] = df.positions.shift(1) * df.returns
         df.dropna(inplace = True)
         df["trades"] = df["positions"].diff().fillna(0).abs()
-        df["r_strategy_net"] = df.r_strategy - df.trades * self.ptc
+        df["r_strategy_net"] = df.r_strategy - df.trades * self.half_spread
         df["creturns"] = df.returns.cumsum().apply(np.exp) #convert the log returns
         df["cr_strategy"] = df.r_strategy.cumsum().apply(np.exp)
         df["cr_strategy_net"] = df.r_strategy_net.cumsum().apply(np.exp)
