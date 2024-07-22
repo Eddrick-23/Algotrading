@@ -46,7 +46,7 @@ class MomentumBT():
         finds optimal window size, leverage, quantile based on specified ranges
     '''
 
-    def __init__(self, symbol, window, start, end, interval = "1d",leverage = 1, quantile = 0.5):
+    def __init__(self, symbol, window, start, end, interval = "1d",leverage = 1, quantile = 0.5, quantile_window = 3):
         '''
         Parameters
         ----------
@@ -73,10 +73,11 @@ class MomentumBT():
         self.interval = interval
         self.leverage = leverage
         self.quantile = quantile
+        self.quantile_window = quantile_window
         self.get_data()
         self.process_data()
     def __repr__(self):
-        return "MomentumBT: {}, window = {}, quantile = {}, leverage = {}".format(self.symbol,self.window, self.quantile, self.leverage)
+        return "MomentumBT: {}, window = {},quantile_window ={}, quantile = {}, leverage = {}".format(self.symbol,self.window,self.quantile_window, self.quantile, self.leverage)
     def get_data(self):
         '''
             Loads stock data from the yfinance library
@@ -96,7 +97,7 @@ class MomentumBT():
         df["lev_returns"] =  np.log(df.Price.pct_change()*self.leverage+1)
         df["window"] = df.Price.rolling(self.window).mean()
         self.data = df
-    def set_parameters(self, window = None, quantile = None, leverage = None):
+    def set_parameters(self, window = None, quantile_window = None, quantile = None, leverage = None):
         ''' Sets new parameters
         parameters
         ----------
@@ -112,6 +113,8 @@ class MomentumBT():
             self.window = window
             self.data = self.preprocessed_data
             self.process_data()
+        if quantile_window is not None:
+            self.quantile_window  = quantile_window
         if quantile is not None:
             self.quantile = quantile
         if leverage is not None:
@@ -128,8 +131,9 @@ class MomentumBT():
         df = self.data.copy()
         df["price_diff"] = df.window.diff()
         df["mag_pricechange"] = df.window.pct_change().abs()
+        df["mag_pcquantile"] = df["Price"].pct_change().rolling(self.quantile_window).apply(lambda x: x.sort_values().quantile(self.quantile))
         df.dropna(inplace = True)
-        df["positions"] = np.sign(df.mag_pricechange) * np.where(df.mag_pricechange > df.mag_pricechange.sort_values().quantile(self.quantile), 1, -1)
+        df["positions"] =  np.sign(df.price_diff)*np.where(df.mag_pricechange > df.mag_pcquantile, 1, -1)
         df["trades"] = df.positions.diff().fillna(0).abs()
         df["creturns"] = df.returns.cumsum().apply(np.exp)
         df["clev_returns"] = df.lev_returns.cumsum().apply(np.exp)
@@ -156,7 +160,7 @@ class MomentumBT():
         plt.title(f"{self.symbol} || Leverage = {self.leverage} || Momentum Window = {self.window} ||Quantile = {round(self.quantile,4)} || TC(% of price traded) = {tc}", size = 13)
         plt.legend(fontsize = 13)
         plt.show()
-    def optimise_strategy(self, window_range, qrange, leverage_range):
+    def optimise_strategy(self, window_range, quantile_window_range, qrange, leverage_range):
         '''
             window_range: int
                 window size to be used
@@ -166,18 +170,26 @@ class MomentumBT():
                 (lower limit, upper limit)
         '''
         windows = list(range(1,window_range+1))
+        quantile_windows = list(range(1,quantile_window_range+1))
         quantiles = list(np.linspace(qrange[0],qrange[1],qrange[2],qrange[3]))
         leverages = list(range(leverage_range[0],leverage_range[1]+1))
-        comb = list(product(windows,quantiles,leverages))
-
+        comb = list(product(windows,quantile_windows,quantiles,leverages))
+        counter = 1
+        progress = 0
+        print(len(comb))
         results = []
         for c in comb:
-            self.set_parameters(window=c[0],quantile=c[1], leverage = c[2])
+            self.set_parameters(window=c[0],quantile_window=c[1],quantile=c[2], leverage = c[3])
             r = self.backtest(print_res = False,return_res=True)
             results.append(r)
+            counter += 1
+            if counter == int(len(comb)/10):
+                counter = 0
+                progress += 10
+                print( str(progress)+ "%")
         best = max(results)
-        optimal_window, quantile, leverage = comb[np.argmax(results)]
-        self.optimisation_results = pd.DataFrame(data = comb, columns=["Window","Quantile","Leverage"])
+        optimal_window,optimal_qwindow, quantile, leverage = comb[np.argmax(results)]
+        self.optimisation_results = pd.DataFrame(data = comb, columns=["Window","Quantile_Window","Quantile","Leverage"])
         self.optimisation_results["performance"] = results
-        print(f"Optimal Window : {optimal_window} ||Quantile : {round(quantile,4)} || Leverage = {leverage} || Performance : {round(best,4)}")
+        print(f"Optimal Window : {optimal_window} || Quantile Window: {optimal_qwindow} ||Quantile : {round(quantile,4)} || Leverage = {leverage} || Performance : {round(best,4)}")
 
