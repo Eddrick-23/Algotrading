@@ -7,7 +7,7 @@ from bidask import edge
 
 #trading costs too high, consider trading on margin?
 
-class MomentumBT():
+class ContrarianBT():
     ''' class to backtest stocks using Momentum strategy
     Attributes
     ----------
@@ -129,11 +129,11 @@ class MomentumBT():
             Set to True to return the absolute performance
         '''
         df = self.data.copy()
-        df["price_diff"] = df.window.diff()
-        df["mag_pricechange"] = df.window.pct_change().abs()
-        df["mag_pcquantile"] = df["Price"].pct_change().rolling(self.quantile_window).apply(lambda x: x.sort_values().quantile(self.quantile))
+        df["pc_direction"] = np.sign(df.window.diff())
+        df["mag_pricechange"] = df["Price"].pct_change().abs().rolling(self.window).mean()
+        df["mag_pcquantile"] = df["Price"].pct_change().abs().rolling(self.quantile_window).apply(lambda x: x.sort_values().quantile(self.quantile))
         df.dropna(inplace = True)
-        df["positions"] =  np.sign(df.price_diff)*np.where(df.mag_pricechange > df.mag_pcquantile, 1, -1)
+        df["positions"] =  -1 * np.sign(df.pc_direction)*np.where(df.mag_pricechange > df.mag_pcquantile, 1, 0) #if large price increase, go short, vice versa.
         df["trades"] = df.positions.diff().fillna(0).abs()
         df["creturns"] = df.returns.cumsum().apply(np.exp)
         df["clev_returns"] = df.lev_returns.cumsum().apply(np.exp)

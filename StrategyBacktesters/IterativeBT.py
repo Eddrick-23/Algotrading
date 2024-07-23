@@ -159,8 +159,8 @@ class IterativeBacktest(IterativeBase):
         #calculate required metrics
         self.data["window"] = self.data.price.rolling(window).mean()
         self.data["price_change_dir"] = np.sign(self.data.price.pct_change())
-        self.data["mag_price_change"] = self.data.window.pct_change().abs()
-        self.data["mag_pcquantile"] = self.data.price.pct_change().rolling(quantile_window).apply(lambda x:x.sort_values().quantile(quantile))
+        self.data["mag_price_change"] = self.data.price.pct_change().abs().rolling(window).mean()
+        self.data["mag_pcquantile"] = self.data.price.pct_change().abs().rolling(quantile_window).apply(lambda x:x.sort_values().quantile(quantile))
         self.data.dropna(inplace = True)
 
         for bar in range(len(self.data)-1):
