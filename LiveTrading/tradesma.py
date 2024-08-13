@@ -5,6 +5,7 @@ import pandas as pd
 import numpy as np
 import datetime as dt
 import os
+from tabulate import tabulate
 
 ib = IB()
 ib.connect()
@@ -46,7 +47,7 @@ def onBarUpdate(bars, hasNewBar): #what to do when we receive a new bar
         time_now = "Time Now(UTC): " + str(dt.datetime.now(dt.UTC).time())
         end_time = "End Time(UTC): " + str(endtime)
         os.system('clear')
-        print(df,time_now,end_time)
+        print(df,time_now,end_time,sep="\n")
     else:
         try:
             trade_reporting()
@@ -92,14 +93,15 @@ def trade_reporting():
     report["cumTC"] = report.commission.cumsum() #track cumulative trading costs
     time_now = "Time Now(UTC): " + str(dt.datetime.now(dt.UTC).time())
     end_time = "End Time(UTC): " + str(endtime)
+    report_tabulate = tabulate(report, headers=["side","cumQTY","avgPrice","realizedPNL","commission","cumPNL","cumTC"],tablefmt="heavy_grid")
     os.system('clear')
-    print(df,report,time_now,end_time)
+    print(df,report_tabulate,time_now,end_time,sep="\n")
 
 
 if __name__ == "__main__":
     #session start
     session_start = pd.to_datetime(dt.datetime.now(dt.UTC))
-    endtime = dt.time(11,52,0)
+    endtime = dt.time(5,50,0)
     bars = ib.reqHistoricalData(
             contract,
             endDateTime='',
@@ -129,8 +131,3 @@ if __name__ == "__main__":
         else: #if stop conditions not met, keep trading
             pass
 
-
-    #TODO
-    #add separators between print statements for dataframes
-    #test for longer duration
-    #find optimal strategy using backtester and test using script
