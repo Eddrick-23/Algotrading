@@ -84,6 +84,8 @@ class ContrarianBT():
         '''
         df = yf.download(self.symbol, self.start, self.end, interval=self.interval)
         self.half_spread = edge(df.Open,df.High, df.Low,df.Close)/2
+        if np.isnan(self.half_spread): #for 1 min freq data, output seems to be nan
+            self.half_spread = 0.00007 #set to a default value
         df = df.Close.to_frame()
         df.rename(columns = {"Close":"Price"}, inplace = True)
         self.preprocessed_data = df #to be used for changing windows so we don't have to repeatedly call yf.download

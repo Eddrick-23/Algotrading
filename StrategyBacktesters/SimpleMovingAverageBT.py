@@ -70,6 +70,8 @@ class SimpleMovingAverageBT():
         '''
         df = yf.download(self.symbol, self.start, self.end, interval= self.interval)
         self.half_spread = edge(df.Open,df.High, df.Low, df.Close)
+        if np.isnan(self.half_spread): #if no spread is calculated, use a default estimate of about 0.0007
+            self.half_spread = 0.00007  
         df = df.Close.to_frame() #we will work with close prices only
         df.rename(columns = {"Close":"Price"}, inplace = True)
         self.preprocessed_data = df #to be used for changing windows so we don't have to repeatedly call yf.download

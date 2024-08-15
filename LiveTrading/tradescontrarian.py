@@ -1,4 +1,4 @@
-#Scripy for trading using sma strategy
+#Scripy for trading using contrarian strategy
 
 from ib_insync import *
 import pandas as pd
@@ -11,8 +11,9 @@ ib = IB()
 ib.connect()
 
 #strategy parameters (sma strategy)
-sma_s = 29
-sma_l = 126
+window = 5
+quantile_window = 10
+quantile = 0.8 #closer value to 1 means we would need a more significant price change before we swap positions.
 units = 1000 #number of units to trade per long or short pos taken
 freq = '15 mins' # we will be accessing bars at 1 min freq
 contract = Forex("EURUSD") #create contract for the Forex Ticker
@@ -32,11 +33,12 @@ def onBarUpdate(bars, hasNewBar): #what to do when we receive a new bar
         df.set_index("date", inplace=True)
 
         ## Trading Strategy ##
-        df = df[["close"]].copy()
-        df["SMA_S"] = df.close.rolling(sma_s).mean()
-        df["SMA_L"] = df.close.rolling(sma_l).mean()
-        df.dropna(inplace=True)
-        df["position"] = np.where(df["SMA_S"] > df["SMA_L"], 1, -1)
+        df["window"] = df.Price.rolling(window).mean()
+        df["pc_direction"] = np.sign(df.window.diff())
+        df["mag_pricechange"] = df["Price"].pct_change().abs().rolling(window).mean()
+        df["mag_pcquantile"] = df["Price"].pct_change().abs().rolling(quantile_window).apply(lambda x: x.sort_values().quantile(quantile))
+        df.dropna(inplace = True)
+        df["positions"] =  -1 * np.sign(df.pc_direction)*np.where(df.mag_pricechange > df.mag_pcquantile, 1, 0) #if large price increase, go short, vice versa.
         ## Trading Strategy ##
 
         #trading
